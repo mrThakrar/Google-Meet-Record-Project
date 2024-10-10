@@ -1,15 +1,18 @@
-import { executablePath } from "puppeteer";
-import puppeteerExtra from "puppeteer-extra";
-import stealthPlugin from "puppeteer-extra-plugin-stealth";
-import anonymizeUaPlugin from "puppeteer-extra-plugin-anonymize-ua";
-import { launch, getStream } from "puppeteer-stream";
-import path from "path";
-import createHttpError from "http-errors";
-import dotenv from "dotenv";
+const {
+    executablePath,
+    puppeteerExtra,
+    stealthPlugin,
+    anonymizeUaPlugin,
+    launch,
+    getStream,
+    path,
+    createHttpError,
+    dotenv,
+    fs,
+} = require("../../config/constant");
 dotenv.config();
-import { fileURLToPath } from 'url';
-import fs from "fs";
 
+// ** puppeteer-extra plugins
 // puppeteerExtra.use(stealthPlugin());
 // puppeteerExtra.use(anonymizeUaPlugin());
 
@@ -22,13 +25,23 @@ const generateFileName = () => {
     return `google_meet_${timestamp}.webm`;
 };
 
-export const startRecording = async (req, res) => {
+// ** start recording
+const startRecording = async (req, res) => {
     try {
         const { meetingId } = req.body;
 
+        // ** validate meeting id
         if (!meetingId) {
             throw createHttpError.BadRequest("Meeting ID is required");
         }
+        let meetId = "";
+        if (meetingId.includes("https://meet.google.com/")) {
+            const url = new URL(meetingId);
+            meetId = meetingId.split("/")[3];
+        } else {
+            meetId = meetingId;
+        }
+        console.log("meetId", meetId);
 
         // ** browser launch
         const browser = await launch(puppeteerExtra, {
@@ -59,18 +72,18 @@ export const startRecording = async (req, res) => {
         const page = await context.newPage();
 
         // ** go to google meet
-        await page.goto(`https://meet.google.com/${meetingId}`, {
+        await page.goto(`https://meet.google.com/${meetId}`, {
             timeout: 30000,
             waitUntil: "networkidle0",
         });
 
         await sleep(5000);
 
-        // ** entering meeting id
+        // ** entering bot name
         await page.waitForSelector('input[type="text"]', { visible: true });
         await page.click('input[type="text"]');
         await sleep(2000);
-        await page.keyboard.type("123", { delay: 200 });
+        await page.keyboard.type(process.env.Bot_Name ?? "MyBot", { delay: 200 });
         await sleep(2000);
         await page.keyboard.press("Enter");
 
@@ -85,16 +98,28 @@ export const startRecording = async (req, res) => {
             frameSize: 2000,
         });
 
-        // ** Create a __dirname equivalent
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-
-        // ** Create a write stream to save the video
-        const recordingsDir = path.join(__dirname, "../../recordings");
+        // ** Create a directory to save the recordings
+        const recordingsDir = path.join(__dirname, "..", "..", "recordings");
         if (!fs.existsSync(recordingsDir)) {
             fs.mkdirSync(recordingsDir, { recursive: true });
         }
 
+        // ** Wait for bot to join
+        try {
+            await page.waitForSelector('[aria-label="Leave call"]', {
+                visible: true,
+                timeout: 60000,
+            });
+        } catch (error) {
+            console.log("Error:", error.message);
+            await browser.close();
+            return res.status(500).json({
+                success: "false",
+                message: "bot is not connected to meet",
+            });
+        }
+
+        // ** Create a write stream to save the video
         const uniqueFileName = generateFileName();
         const fileStream = fs.createWriteStream(
             path.join(recordingsDir, uniqueFileName)
@@ -103,34 +128,35 @@ export const startRecording = async (req, res) => {
         console.log("Recording started...");
 
         const monitorMeetingEnd = async () => {
-            await page.waitForSelector('[aria-label="Leave call"]', {
-                visible: true,
-            });
             while (true) {
                 await sleep(5000);
 
-                // ** Check if the "Leave call" button is no longer present
-                const isMeetingEnded = await page.evaluate(() => {
-                    const leaveButton = document.querySelector(
-                        '[aria-label="Leave call"]'
-                    );
-                    console.log("leaveButton", leaveButton);
-                    // return !leaveButton;
-
-                    let totalParticipants = 0;
-
-                    let participantCount = document.querySelector(
-                        ".gFyGKf.BN1Lfc .uGOf1d"
-                    ).textContent;
-                    participantCount = Number(participantCount);
-                    totalParticipants = participantCount || 0;
-                    console.log(`Number of participants: ${participantCount}`);
-
-                    return totalParticipants < 2 || !leaveButton;
-                });
-
-                if (isMeetingEnded) {
-                    console.log("Meeting has ended, stopping the recording...");
+                try {
+                    // ** Check if the "Leave call" button is no longer present
+                    const isMeetingEnded = await page.evaluate(() => {
+                        const leaveButton = document.querySelector(
+                            '[aria-label="Leave call"]',
+                        );
+                        console.log("leaveButton", leaveButton);
+    
+                        let totalParticipants = 0;
+    
+                        let participantCount = document.querySelector(
+                            ".gFyGKf.BN1Lfc .uGOf1d"
+                        ).textContent;
+                        participantCount = Number(participantCount);
+                        totalParticipants = participantCount || 0;
+                        console.log(`Number of participants: ${participantCount}`);
+    
+                        return totalParticipants < 2 || !leaveButton;
+                    });
+    
+                    if (isMeetingEnded) {
+                        console.log("Meeting has ended, stopping the recording...");
+                        break;
+                    }
+                } catch (error) {
+                    stopRecording();
                     break;
                 }
             }
@@ -148,6 +174,7 @@ export const startRecording = async (req, res) => {
             console.log(`Recording saved as ${uniqueFileName}`);
         };
 
+        // ** Handle SIGINT
         process.on("SIGINT", () => {
             console.log(
                 "Received SIGINT. Saving and stopping the recording..."
@@ -156,6 +183,7 @@ export const startRecording = async (req, res) => {
             process.exit();
         });
 
+        // ** Handle SIGTERM
         process.on("SIGTERM", () => {
             console.log(
                 "Received SIGTERM. Saving and stopping the recording..."
@@ -164,33 +192,35 @@ export const startRecording = async (req, res) => {
             process.exit();
         });
 
+        // ** Handle uncaught exceptions
         process.on("uncaughtException", (err) => {
             console.error("Uncaught exception:", err);
             stopRecording();
             process.exit(1);
         });
 
+        // ** Monitor the meeting end
         await monitorMeetingEnd();
 
         // ** Stop the recording
-        // stream.destroy();
-        // fileStream.end();
         stopRecording();
 
-        console.log("Recording saved as google_meet_recording.webm");
-
+        // ** Close the browser
         await browser.close();
-
-        return {
+        console.log("browser closed");
+        
+        return res.status(200).json({
             success: true,
             message: "Recording saved",
-        };
+        });
     } catch (error) {
         console.log(error);
 
-        return {
+        return res.status(500).json({
             success: false,
             message: "Recording failed",
-        };
+        });
     }
 };
+
+module.exports = startRecording;

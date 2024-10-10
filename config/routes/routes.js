@@ -1,5 +1,5 @@
-import express from "express";
-import recorder from "./recorder.route.js";
+const express = require("express");
+const recorder = require("./recorder.js");
 
 const Router = express.Router();
 
@@ -11,4 +11,4 @@ Router.get("/", (req, res) => {
     });
 });
 
-export default Router;
+module.exports = Router;
