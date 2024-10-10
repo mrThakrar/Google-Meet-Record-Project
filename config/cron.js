@@ -2,7 +2,7 @@ const {axios, cron} = require("./constant.js");
 
 const scheduleCron = async () => {
     console.log("dcsd")
-    cron.schedule('*/30 * * * * *', async() => {
+    cron.schedule('*/10 * * * *', async() => {
         console.log("vfv")
         await axios.get('http://localhost:3000/getEvents');
     })
