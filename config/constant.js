@@ -9,7 +9,18 @@ const dotenv = require("dotenv");
 const { fileURLToPath } = require("url");
 const fs = require("fs");
 const cors = require("cors");
+const { google } = require("googleapis");
+const { Sequelize, DataTypes } = require("sequelize");
+const cron = require("node-cron");
+const axios = require("axios");
 
+dotenv.config();
+
+const oauth2Client = new google.auth.OAuth2(
+    process.env.CLIENNT_ID,
+    process.env.SECRET_ID,
+    process.env.REDIRECT_URI
+)
 
 module.exports = {
     executablePath,
@@ -24,5 +35,10 @@ module.exports = {
     fileURLToPath,
     fs,
     cors,
-    createHttpError
+    google,
+    oauth2Client,
+    Sequelize,
+    DataTypes,
+    cron,
+    axios,
 };

@@ -9,14 +9,19 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.7.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "googleapis": "^144.0.0",
     "http-errors": "^2.0.0",
+    "mysql2": "^3.11.3",
+    "node-cron": "^3.0.3",
     "puppeteer": "^23.5.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-anonymize-ua": "^2.4.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "puppeteer-stream": "^3.0.19"
+    "puppeteer-stream": "^3.0.19",
+    "sequelize": "^6.37.4"
   }
 }
