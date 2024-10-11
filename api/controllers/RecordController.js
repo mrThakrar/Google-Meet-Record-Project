@@ -1,3 +1,4 @@
+const { timeout } = require("puppeteer");
 const {
     executablePath,
     puppeteerExtra,
@@ -27,6 +28,7 @@ const generateFileName = () => {
 
 // ** start recording
 const startRecording = async (req, res) => {
+    let browser;
     try {
         const { meetingId } = req.body;
 
@@ -44,7 +46,7 @@ const startRecording = async (req, res) => {
         console.log("meetId", meetId);
 
         // ** browser launch
-        const browser = await launch(puppeteerExtra, {
+        browser = await launch(puppeteerExtra, {
             // defaultViewport: {
             //     width: 1180,
             //     height: 950,
@@ -105,19 +107,11 @@ const startRecording = async (req, res) => {
         }
 
         // ** Wait for bot to join
-        try {
-            await page.waitForSelector('[aria-label="Leave call"]', {
-                visible: true,
-                timeout: 60000,
-            });
-        } catch (error) {
-            console.log("Error:", error.message);
-            await browser.close();
-            return res.status(500).json({
-                success: "false",
-                message: "bot is not connected to meet",
-            });
-        }
+        await page.waitForSelector('[aria-label="Leave call"]', {
+            visible: true,
+            timeout: 60000,
+        });
+        
 
         // ** Create a write stream to save the video
         const uniqueFileName = generateFileName();
@@ -196,7 +190,7 @@ const startRecording = async (req, res) => {
         process.on("uncaughtException", (err) => {
             console.error("Uncaught exception:", err);
             stopRecording();
-            process.exit(1);
+            // process.exit(1);
         });
 
         // ** Monitor the meeting end
@@ -215,6 +209,11 @@ const startRecording = async (req, res) => {
         });
     } catch (error) {
         console.log(error);
+
+        // ** Close the browser
+        if (browser) {
+            await browser.close();
+        }
 
         return res.status(500).json({
             success: false,

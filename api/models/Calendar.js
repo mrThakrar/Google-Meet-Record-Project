@@ -1,4 +1,4 @@
-const { DataTypes, cron } = require("../../config/constant.js");
+const { DataTypes } = require("../../config/constant.js");
 const { sequelize } = require("../../config/db.js");
 
 const Calendar = sequelize.define("calendar", {
