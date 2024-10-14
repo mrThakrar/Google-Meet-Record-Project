@@ -45,13 +45,15 @@ const startRecording = async (req, res) => {
         }
         console.log("meetId", meetId);
 
+        await sleep(2000);
+
         // ** browser launch
         browser = await launch(puppeteerExtra, {
             // defaultViewport: {
             //     width: 1180,
             //     height: 950,
             // },
-            headless: false,
+            headless: true,
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -85,7 +87,9 @@ const startRecording = async (req, res) => {
         await page.waitForSelector('input[type="text"]', { visible: true });
         await page.click('input[type="text"]');
         await sleep(2000);
-        await page.keyboard.type(process.env.Bot_Name ?? "MyBot", { delay: 200 });
+        await page.keyboard.type(process.env.Bot_Name ?? "MyBot", {
+            delay: 200,
+        });
         await sleep(2000);
         await page.keyboard.press("Enter");
 
@@ -107,50 +111,46 @@ const startRecording = async (req, res) => {
         }
 
         // ** Wait for bot to join
-        await page.waitForSelector('[aria-label="Leave call"]', {
-            visible: true,
-            timeout: 60000,
-        });
-        
+        await sleep(2000);
 
         // ** Create a write stream to save the video
         const uniqueFileName = generateFileName();
         const fileStream = fs.createWriteStream(
             path.join(recordingsDir, uniqueFileName)
         );
-        stream.pipe(fileStream);
-        console.log("Recording started...");
 
+        // ** Monitor meeting end
         const monitorMeetingEnd = async () => {
             while (true) {
-                await sleep(5000);
+                await page.waitForSelector('[aria-label="Leave call"]', {
+                    visible: true,
+                });
 
-                try {
-                    // ** Check if the "Leave call" button is no longer present
-                    const isMeetingEnded = await page.evaluate(() => {
-                        const leaveButton = document.querySelector(
-                            '[aria-label="Leave call"]',
-                        );
-                        console.log("leaveButton", leaveButton);
-    
-                        let totalParticipants = 0;
-    
-                        let participantCount = document.querySelector(
-                            ".gFyGKf.BN1Lfc .uGOf1d"
-                        ).textContent;
-                        participantCount = Number(participantCount);
-                        totalParticipants = participantCount || 0;
-                        console.log(`Number of participants: ${participantCount}`);
-    
-                        return totalParticipants < 2 || !leaveButton;
-                    });
-    
-                    if (isMeetingEnded) {
-                        console.log("Meeting has ended, stopping the recording...");
-                        break;
-                    }
-                } catch (error) {
-                    stopRecording();
+                stream.pipe(fileStream);
+                console.log("Recording started...");
+
+                // ** Check if the "Leave call" button is no longer present
+                const isMeetingEnded = await page.evaluate(() => {
+                    const leaveButton = document.querySelector(
+                        '[aria-label="Leave call"]'
+                    );
+                    console.log("leaveButton", leaveButton);
+
+                    let totalParticipants = 0;
+
+                    // ** Get the number of participants
+                    let participantCount = document.querySelector(
+                        ".gFyGKf.BN1Lfc .uGOf1d"
+                    ).textContent;
+                    participantCount = Number(participantCount);
+                    totalParticipants = participantCount || 0;
+                    console.log(`Number of participants: ${participantCount}`);
+
+                    return totalParticipants < 2 || !leaveButton;
+                });
+
+                if (isMeetingEnded) {
+                    console.log("Meeting has ended, stopping the recording...");
                     break;
                 }
             }
@@ -165,33 +165,11 @@ const startRecording = async (req, res) => {
             if (fileStream && !fileStream.closed) {
                 fileStream.end();
             }
+            // if (browser) {
+            //     browser.close();
+            // }
             console.log(`Recording saved as ${uniqueFileName}`);
         };
-
-        // ** Handle SIGINT
-        process.on("SIGINT", () => {
-            console.log(
-                "Received SIGINT. Saving and stopping the recording..."
-            );
-            stopRecording();
-            process.exit();
-        });
-
-        // ** Handle SIGTERM
-        process.on("SIGTERM", () => {
-            console.log(
-                "Received SIGTERM. Saving and stopping the recording..."
-            );
-            stopRecording();
-            process.exit();
-        });
-
-        // ** Handle uncaught exceptions
-        process.on("uncaughtException", (err) => {
-            console.error("Uncaught exception:", err);
-            stopRecording();
-            // process.exit(1);
-        });
 
         // ** Monitor the meeting end
         await monitorMeetingEnd();
@@ -200,9 +178,11 @@ const startRecording = async (req, res) => {
         stopRecording();
 
         // ** Close the browser
-        await browser.close();
+        if (browser) {
+            await browser.close();
+        }
         console.log("browser closed");
-        
+
         return res.status(200).json({
             success: true,
             message: "Recording saved",
@@ -212,6 +192,7 @@ const startRecording = async (req, res) => {
 
         // ** Close the browser
         if (browser) {
+            console.log(browser);
             await browser.close();
         }
 
@@ -219,6 +200,11 @@ const startRecording = async (req, res) => {
             success: false,
             message: "Recording failed",
         });
+    } finally {
+        console.log("finally executed");
+        if (browser) {
+            await browser.close();
+        }
     }
 };
 

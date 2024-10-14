@@ -21,7 +21,7 @@ const Calendar = sequelize.define("calendar", {
     summary: {
         type: DataTypes.STRING,
     },
-    cron: {
+    isCronScheduled: {
         type: DataTypes.BOOLEAN,
     },
 });

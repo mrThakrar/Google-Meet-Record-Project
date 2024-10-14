@@ -24,13 +24,13 @@
                     body: JSON.stringify({ meetingId: meetingId }),
                 });
 
-                if (response.ok) {
-                    const meetUrl = `https://meet.google.com/${meetingId}`;
-                    window.location.href = meetUrl;
-                } else {
-                    const error = await response.json();
-                    alert('Error: ', error.message);
-                }
+                // if (response.ok) {
+                //     const meetUrl = `https://meet.google.com/${meetingId}`;
+                //     window.location.href = meetUrl;
+                // } else {
+                //     const error = await response.json();
+                //     alert('Error: ', error.message);
+                // }
 
             } catch (error) {
                 alert('An error occurred while starting the recording.');

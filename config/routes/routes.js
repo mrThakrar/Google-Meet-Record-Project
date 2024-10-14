@@ -36,35 +36,5 @@ Router.get('/redirect', (req, res) => {
     })
 })
 
-// Router.get('/events', (req, res) => {
-//     const calendarId = req.query.calendarId ?? 'primary';
-//     const calendar = google.calendar({version: 'v3', auth: oauth2Client});
-
-//     calendar.events.list({
-//         calendarId: calendarId,
-//         timeMin: new Date().toISOString(),
-//         maxResults: 10,
-//         singleEvents: true,
-//         orderBy: 'startTime'
-//     }, (err, response) => {
-//         if(err) {
-//             console.log(err);
-//             return res.json({
-//                 success: false,
-//                 message: 'Failed to get events'
-//             })
-//         }
-//         const events = response.data.items;
-
-//         for (let i = 0; i < events.length; i++) {
-//             const event = events[i];
-//             console.log("meeting link", event.hangoutLink);
-//         }
-//         return res.json({
-//             success: true,
-//             events: events
-//         })
-//     })
-// })
 
 module.exports = Router;
