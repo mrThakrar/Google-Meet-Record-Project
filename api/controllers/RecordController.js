@@ -121,13 +121,14 @@ const startRecording = async (req, res) => {
 
         // ** Monitor meeting end
         const monitorMeetingEnd = async () => {
-            while (true) {
                 await page.waitForSelector('[aria-label="Leave call"]', {
                     visible: true,
                 });
 
                 stream.pipe(fileStream);
                 console.log("Recording started...");
+            
+            while (true) {
 
                 // ** Check if the "Leave call" button is no longer present
                 const isMeetingEnded = await page.evaluate(() => {
