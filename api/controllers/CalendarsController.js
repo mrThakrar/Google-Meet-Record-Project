@@ -1,124 +1,26 @@
 const { google, axios, cron, oauth2Client } = require("../../config/constant.js");
 const Calendar = require("../models/Calendar.js");
+const getEventsAndScheduleCron = require("../helpers/get-events.js");
 
 
 const getEvents = async (req, res) => {
     try {
-        // const calendarId = req.query.calendarId ?? "primary";
-        const calendarId = "primary";
-        // ** calender auth
-        const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
         // ** fetching events
-        calendar.events.list(
-            {
-                calendarId: calendarId,
-                timeMin: new Date().toISOString(),
-                maxResults: 15,
-                singleEvents: true,
-                orderBy: "startTime",
-            },
-            async (err, response) => {
-                if (err) {
-                    console.log(err);
-                    return res.json({
-                        success: false,
-                        message: "Failed to get events",
-                    });
-                }
-                // ** events
-                const events = await response.data.items;
-                console.log("events", events);
+        const resp = await getEventsAndScheduleCron();
+        console.log(resp);
+        if (!resp.success) {
+            return res.json({
+                success: false,
+                message: resp.message,
+            });
+        } else {
+            return res.json({
+                success: true,
+                message: "Events fetched and cron jobs scheduled successfully",
+            });
+        }
 
-                // ** loop for checking if event already exists in db and if not then push into db
-                const eventArr = [];
-                for (let i = 0; i < events.length; i++) {
-                    const event = events[i];
-                    console.log("meeting link", event.hangoutLink);
-                    
-                    // ** temp event object
-                    const eventObj = {};
-                    eventObj.id = event.id;
-                    eventObj.meetingId = event.hangoutLink;
-                    eventObj.email = event?.creator?.email;
-                    eventObj.startTime = new Date(event?.start?.dateTime);
-                    eventObj.endTime = new Date(event?.end?.dateTime);
-                    eventObj.summary = event?.summary;
-                    eventObj.isCronScheduled = false;
-
-
-                    // ** check if event already exists
-                    const existingEvent = await Calendar.findOne({ 
-                        where: {
-                            id: eventObj.id,
-                        }
-                    });
-                    if (existingEvent) {
-                        continue;
-                    }
-
-                    eventArr.push(eventObj);
-                }
-
-                // ** push eventArr to db
-                console.log("eventArr", eventArr);
-                if (eventArr.length > 0) {
-                    await Calendar.bulkCreate(eventArr);
-                }
-
-
-
-                // ** finding even on which cron job needs to be scheduled
-                const cronEvents = await Calendar.findAll({
-                    where: {
-                        isCronScheduled: false,
-                    }
-                });
-                console.log("cronEvents", cronEvents);
-        
-                const istOffset = 5 * 60 * 60 * 1000 + 30 * 60 * 1000; // Offset for IST in milliseconds
-
-                // ** scheduling cron jobs on cronEvents
-                for (let i = 0; i < cronEvents.length; i++) {
-                    const event = cronEvents[i];
-                    // const startTime = event.startTime.toISOString();
-                    // ** convert time to IST
-                    const startTimeDB = event.startTime;
-                    const utcTime = new Date(startTimeDB);
-                    const startTime = new Date(utcTime.getTime() + istOffset).toISOString();
-                    const meetingId = event.meetingId;
-                    console.log("startTime", startTime);
-                    console.log("meetingId", meetingId);
-                    
-                    // ** finding cron time
-                    const cronTime =
-                        startTime.split("T")[1].split(":")[1] +
-                        " " +
-                        startTime.split("T")[1].split(":")[0] +
-                        " " +
-                        startTime.split("T")[0].split("-")[2] +
-                        " " +
-                        startTime.split("T")[0].split("-")[1] +
-                        " *";
-                    console.log(cronTime);
-
-                    // ** schedule cron
-                    cron.schedule(cronTime, async () => {
-                        console.log("meetcron");
-                        await axios.post(`http://localhost:3000/startRecording`, {
-                            meetingId: meetingId,
-                        });
-                    });
-                    event.isCronScheduled = true;
-                    await event.save();
-                }
-        
-                return res.json({
-                    success: true,
-                    message: "Events fetched and cron jobs scheduled successfully",
-                });
-            }
-        );
 
     } catch (error) {
         console.log("error", error.message);
